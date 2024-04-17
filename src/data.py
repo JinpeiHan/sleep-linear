@@ -57,7 +57,7 @@ def load_signals(
 
 def load_annotations(annotation_file_path: str, psg_file_path: str) -> pd.DataFrame:
     """Load the edf annotations for the given filepath."""
-    annotations = mne.annotations.read_annotations(annotation_file_path)
+    annotations = mne.read_annotations(annotation_file_path)
     # Fore some hypnogram files there is an error when trying to get the start time
     # => Solution; get the start time from the psg file
     start_time = pyedflib.EdfReader(psg_file_path).getStartdatetime()
