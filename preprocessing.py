@@ -2,7 +2,6 @@ import sys
 
 sys.path.append("../src/")
 import os
-
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -44,6 +43,7 @@ bandpowers_ouputs = [b[2] for b in bands] + ["TotalAbsPow"]
 def wrapped_bandpowers(x, sf, bands):
     return bandpower(x, sf=sf, bands=bands).values[0][:-2]
 
+
 def butter_bandpass_filter(sig, lowcut, highcut, fs, order=5):
     nyq = 0.5 * fs
     low = lowcut / nyq
@@ -52,6 +52,49 @@ def butter_bandpass_filter(sig, lowcut, highcut, fs, order=5):
     y = lfilter(b, a, sig)
     return y
 
+
+def extract_raw_windows(data_series: pd.Series, timestamps: pd.DatetimeIndex):
+    """
+    Extract 30-second windows from a pd.Series based on a list of start times (DatetimeIndex).
+
+    Parameters:
+    - data_series (pd.Series): Time series data indexed by timestamp from which to extract segments.
+    - timestamps (pd.DatetimeIndex): DatetimeIndex containing the start times for each window.
+
+    Returns:
+    - pd.DataFrame: DataFrame containing all segments, each indexed by the original timestamp index,
+                    with an additional 'Window' column indicating the window number.
+    """
+    # Duration of each window
+    duration = pd.Timedelta(seconds=30)
+
+    # Using list comprehension to create a DataFrame for each window
+    segments = [data_series[start:start + duration] for start in timestamps]
+    return segments
+
+def extract_raw_data(self, data: pd.DataFrame, window_size: pd.Timedelta, stride: pd.Timedelta):
+    """
+    Extracts raw data segments based on the specified window size and stride.
+
+    Parameters:
+    - data (pd.DataFrame): The DataFrame containing the time series data.
+    - window_size (pd.Timedelta): The size of the window for which to extract data.
+    - stride (pd.Timedelta): The stride between windows.
+
+    Returns:
+    - List[pd.DataFrame]: A list of DataFrame segments containing the raw data for each window.
+    """
+    start_time = data.index[0]
+    end_time = data.index[-1]
+    current_time = start_time
+    segments = []
+
+    while current_time + window_size <= end_time:
+        segment = data.loc[current_time:current_time + window_size]
+        segments.append(segment)
+        current_time += stride
+
+    return segments
 
 
 signals_types = [
@@ -102,18 +145,18 @@ tsfresh_settings = {
 }
 
 time_funcs = [
-    np.std,
-    ss.iqr,
-    ss.skew,
-    ss.kurtosis,
-    ant.num_zerocross,
-    FuncWrapper(
-        ant.hjorth_params, output_names=["horth_mobility", "hjorth_complexity"]
-    ),
-    wrapped_higuchi_fd,
-    ant.petrosian_fd,
-    ant.perm_entropy,
-] + tsfresh_settings_wrapper(tsfresh_settings)
+                 np.std,
+                 ss.iqr,
+                 ss.skew,
+                 ss.kurtosis,
+                 ant.num_zerocross,
+                 FuncWrapper(
+                     ant.hjorth_params, output_names=["horth_mobility", "hjorth_complexity"]
+                 ),
+                 wrapped_higuchi_fd,
+                 ant.petrosian_fd,
+                 ant.perm_entropy,
+             ] + tsfresh_settings_wrapper(tsfresh_settings)
 
 freq_funcs = [
     FuncWrapper(wrapped_bandpowers, sf=100, bands=bands, output_names=bandpowers_ouputs)
@@ -121,7 +164,8 @@ freq_funcs = [
 
 time_feats = MultipleFeatureDescriptors(
     time_funcs,
-    ["EEG Fpz-Cz", "EEG Pz-Oz", "EOG horizontal",
+    ["EEG Fpz-Cz", "EEG Pz-Oz",
+     # "EOG horizontal",
      # "EMG submental"
      ],
     windows=["30s"],
@@ -129,7 +173,9 @@ time_feats = MultipleFeatureDescriptors(
 )
 freq_feats = MultipleFeatureDescriptors(
     freq_funcs,
-    ["EEG Fpz-Cz", "EEG Pz-Oz", "EOG horizontal"],
+    ["EEG Fpz-Cz", "EEG Pz-Oz",
+     # "EOG horizontal"
+     ],
     windows=["30s"],
     strides="30s",
 )
@@ -151,16 +197,16 @@ patient_ids = [i for i in df_files["patient_id"]]
 unique_ids = np.unique(patient_ids)
 
 # split into train test 8:2 across subjects
-train_sbj, test_sbj = train_test_split(unique_ids, test_size=0.2, random_state=0)
-
-df_files_train = df_files[df_files.patient_id.isin(train_sbj)]
-
-df_files_test = df_files[df_files.patient_id.isin(test_sbj)]
+# train_sbj, test_sbj = train_test_split(unique_ids, test_size=0.2, random_state=0)
+#
+# df_files_train = df_files[df_files.patient_id.isin(train_sbj)]
+#
+# df_files_test = df_files[df_files.patient_id.isin(test_sbj)]
 
 df_feats = []
 
 for sub_folder, psg_file, hypnogram_file in tqdm(
-    zip(df_files_train.subfolder, df_files_train.psg_file, df_files_train.label_file)
+        zip(df_files.subfolder, df_files.psg_file, df_files.label_file)
 ):
     file_folder = data_folder + sub_folder + "/"
     # Load the data, process the data and extract features
@@ -169,21 +215,28 @@ for sub_folder, psg_file, hypnogram_file in tqdm(
 
     annotations = load_annotations(file_folder + hypnogram_file, file_folder + psg_file)
     annotations = annotation_to_30s_labels(annotations)
-
-
     data_processed = process_pipe.process(data)
+
     df_feat = feature_collection.calculate(
         data_processed, return_df=True, window_idx="begin"
     ).astype("float32")
+
     # Add the labels (and reduce features to only data for which we have labels)
 
     df_feat = df_feat.merge(annotations, left_index=True, right_index=True)
+
+    time_stamps = df_feat.index
+
+    raw_windows = [extract_raw_windows(w, time_stamps) for w in data_processed]
+
     # Add the file name & folder
     df_feat["psg_file"] = psg_file
     df_feat["patient_id"] = psg_file[:5]
+    df_feat[data_processed[0].name + "_raw"] = raw_windows[0]
+    df_feat[data_processed[1].name + "_raw"] = raw_windows[1]
     # Collect the dataframes
     df_feats += [df_feat]
 
 df_feats = pd.concat(df_feats)
 df_feats.rename(columns={"description": "label"}, inplace=True)
-
+df_feats.to_parquet("./features/sleep-edf__telemetry_features_ALL__30s.parquet")
