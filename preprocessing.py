@@ -275,7 +275,7 @@ for sub_folder, psg_file, hypnogram_file in tqdm(
     # Collect the dataframes
     # df_feats += [df_feat]
 
-    pickle.dump([raw_data, patient_features, labels, patient_ids], open('./features/' + patient_id + filename + '.p', 'wb'))
+    pickle.dump([raw_data, patient_features, labels, patient_ids], open('./features/' + filename + '.p', 'wb'))
     print(patient_id + '_' + filename + ' finished saving...')
 
 # df_feats = pd.concat(df_feats)
