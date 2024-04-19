@@ -268,7 +268,7 @@ for sub_folder, psg_file, hypnogram_file in tqdm(
     labels = df_feat.values[:, -3]
 
     patient_id = np.unique(patient_ids)[0]
-    filename = np.unique(df_feat["psg_file"].values)[0]
+    filename = np.unique(df_feat["psg_file"].values[:8])[0]
 
     # df_feat[data_processed[0].name + "_raw"] = raw_windows[0]
     # df_feat[data_processed[1].name + "_raw"] = raw_windows[1]
