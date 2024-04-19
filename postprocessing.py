@@ -22,6 +22,7 @@ for filename in os.listdir(folder_path):
         with open(os.path.join(folder_path, filename), 'rb') as file:
             # Load the data structured as [raw_data, patient_features, labels, patient_ids]
             raw_data, patient_features, labels, patient_ids = pickle.load(file)
+            patient_features = patient_features.astype(float)
 
             labels[labels == "Sleep stage 4"] = "Sleep stage 3"
 
@@ -41,7 +42,7 @@ for filename in os.listdir(folder_path):
 for pid, data in list(patient_data.items()):
     raw_data, patient_features, labels, patient_ids = data
     # Check for nan in patient_features and labels
-    nan_mask = np.isnan(patient_features).any(axis=1) | np.isnan(labels).any(axis=1)
+    nan_mask = np.isnan(patient_features).any(axis=1)
     # Filter out labels not in the valid set
     label_mask = np.isin(labels, list(valid_labels))
 
@@ -53,6 +54,7 @@ for pid, data in list(patient_data.items()):
         output_file_path = os.path.join(output_folder, f'patient_{pid}.p')
         with open(output_file_path, 'wb') as output_file:
             pickle.dump(filtered_data, output_file)
+            print('Patient {} saved!'.format(pid))
     else:
         # If no valid data left, do not save any data for this patient
         continue
