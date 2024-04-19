@@ -13,7 +13,7 @@ from tsflex.processing import SeriesPipeline, SeriesProcessor
 import antropy as ant
 import scipy.stats as ss
 from yasa import bandpower
-
+import pickle
 import scipy.stats as ss
 from tsflex.features import (
     FeatureCollection,
@@ -237,6 +237,12 @@ for sub_folder, psg_file, hypnogram_file in tqdm(
     # Collect the dataframes
     df_feats += [df_feat]
 
+pickle.dump(df_feats, open('./features/sleep-edf_ALL_30s.p', 'wb'))
+print('finished saving')
+
 df_feats = pd.concat(df_feats)
 df_feats.rename(columns={"description": "label"}, inplace=True)
 df_feats.to_parquet("./features/sleep-edf__telemetry_features_ALL__30s.parquet")
+
+print('finished saving')
+
