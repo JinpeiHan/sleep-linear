@@ -229,20 +229,37 @@ for sub_folder, psg_file, hypnogram_file in tqdm(
 
     raw_windows = [extract_raw_windows(w, time_stamps) for w in data_processed]
 
+    raw_data = []
+    for ch in raw_windows:
+        ch_data = []
+        for w in ch:
+            ch_data.append(w.values[:-1])
+        raw_data.append(np.array(ch_data))
+    raw_data = np.array(raw_data).swapaxes(0, 1)
+
+
     # Add the file name & folder
     df_feat["psg_file"] = psg_file
     df_feat["patient_id"] = psg_file[:5]
-    df_feat[data_processed[0].name + "_raw"] = raw_windows[0]
-    df_feat[data_processed[1].name + "_raw"] = raw_windows[1]
+
+    patient_ids = df_feat["patient_id"].values
+    patient_features = df_feat.values[:, :-3]
+    labels = df_feat.values[:, -3]
+
+    patient_id = np.unique(patient_ids)[0]
+    filename = np.unique(df_feat["patient_id"].values)[0]
+
+    # df_feat[data_processed[0].name + "_raw"] = raw_windows[0]
+    # df_feat[data_processed[1].name + "_raw"] = raw_windows[1]
     # Collect the dataframes
-    df_feats += [df_feat]
+    # df_feats += [df_feat]
 
-pickle.dump(df_feats, open('./features/sleep-edf_ALL_30s.p', 'wb'))
-print('finished saving')
+    pickle.dump([raw_data, patient_features, labels, patient_ids], open('./features/' + patient_id + filename + '.p', 'wb'))
+    print( patient_id + '_' + filename + ' finished saving...')
 
-df_feats = pd.concat(df_feats)
-df_feats.rename(columns={"description": "label"}, inplace=True)
-df_feats.to_parquet("./features/sleep-edf__telemetry_features_ALL__30s.parquet")
-
-print('finished saving')
+# df_feats = pd.concat(df_feats)
+# # df_feats.rename(columns={"description": "label"}, inplace=True)
+# # df_feats.to_parquet("./features/sleep-edf__telemetry_features_ALL__30s.parquet")
+#
+# print('finished saving')
 
