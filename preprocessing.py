@@ -203,8 +203,6 @@ unique_ids = np.unique(patient_ids)
 #
 # df_files_test = df_files[df_files.patient_id.isin(test_sbj)]
 
-df_feats = []
-
 for sub_folder, psg_file, hypnogram_file in tqdm(
         zip(df_files.subfolder, df_files.psg_file, df_files.label_file)
 ):
@@ -220,6 +218,29 @@ for sub_folder, psg_file, hypnogram_file in tqdm(
     df_feat = feature_collection.calculate(
         data_processed, return_df=True, window_idx="begin"
     ).astype("float32")
+
+    eeg_signals = [d.name for d in data_processed if "EEG" in d.name]
+    bands = ["alpha", "beta", "sdelta", "fdelta", "sigma", "theta"]
+    for eeg_sig in eeg_signals:
+        eeg_bands = [c for c in df_feat.columns if c.startswith(eeg_sig) and c.split("__")[1] in bands]
+        windows = sorted(set(b.split("__")[-1] for b in eeg_bands))
+        for window in windows:
+            # Select the spectral powers
+            delta = df_feat["__".join([eeg_sig, "sdelta", window])] + df_feat["__".join([eeg_sig, "fdelta", window])]
+            fdelta_theta = df_feat["__".join([eeg_sig, "fdelta", window])] + df_feat[
+                "__".join([eeg_sig, "theta", window])]
+            alpha = df_feat["__".join([eeg_sig, "alpha", window])]
+            beta = df_feat["__".join([eeg_sig, "beta", window])]
+            theta = df_feat["__".join([eeg_sig, "theta", window])]
+            sigma = df_feat["__".join([eeg_sig, "sigma", window])]
+            # Calculate the ratios
+            df_feat["__".join([eeg_sig, "fdelta+theta", window])] = fdelta_theta.astype("float32")
+            df_feat["__".join([eeg_sig, "alpha/theta", window])] = (alpha / theta).astype("float32")
+            df_feat["__".join([eeg_sig, "delta/beta", window])] = (delta / beta).astype("float32")
+            df_feat["__".join([eeg_sig, "delta/sigma", window])] = (delta / sigma).astype("float32")
+            df_feat["__".join([eeg_sig, "delta/theta", window])] = (delta / theta).astype("float32")
+
+
 
     # Add the labels (and reduce features to only data for which we have labels)
 
@@ -255,11 +276,11 @@ for sub_folder, psg_file, hypnogram_file in tqdm(
     # df_feats += [df_feat]
 
     pickle.dump([raw_data, patient_features, labels, patient_ids], open('./features/' + patient_id + filename + '.p', 'wb'))
-    print( patient_id + '_' + filename + ' finished saving...')
+    print(patient_id + '_' + filename + ' finished saving...')
 
 # df_feats = pd.concat(df_feats)
 # # df_feats.rename(columns={"description": "label"}, inplace=True)
 # # df_feats.to_parquet("./features/sleep-edf__telemetry_features_ALL__30s.parquet")
 #
-# print('finished saving')
+print('finished saving')
 
